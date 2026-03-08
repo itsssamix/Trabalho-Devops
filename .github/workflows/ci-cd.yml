@@ -55,7 +55,7 @@ jobs:
       uses: docker/setup-buildx-action@v2
     - name: Build and push Docker images
       run: |
-        docker-compose build
+        docker compose build
         docker tag pedidos-veloz_api-gateway pedidos-veloz/api-gateway:latest
         docker tag pedidos-veloz_order-service pedidos-veloz/order-service:latest
         docker tag pedidos-veloz_payment-service pedidos-veloz/payment-service:latest
@@ -96,13 +96,13 @@ jobs:
     - uses: actions/checkout@v3
     - name: Run integration tests
       run: |
-        docker-compose up -d
+        docker compose up -d
         sleep 60
         # Run simple health checks
         curl -f http://localhost:8080/health
         # Test create order
         curl -X POST http://localhost:8080/orders -H "Content-Type: application/json" -d '{"product_id": 1, "quantity": 1}' -f
-        docker-compose down
+        docker compose down
 
   deploy:
     runs-on: ubuntu-latest
