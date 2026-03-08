@@ -56,12 +56,7 @@ jobs:
     - name: Build and push Docker images
       run: |
         docker compose build
-        docker tag pedidos-veloz_api-gateway pedidos-veloz/api-gateway:latest
-        docker tag pedidos-veloz_order-service pedidos-veloz/order-service:latest
-        docker tag pedidos-veloz_payment-service pedidos-veloz/payment-service:latest
-        docker tag pedidos-veloz_inventory-service pedidos-veloz/inventory-service:latest
-        docker tag pedidos-veloz_db pedidos-veloz/db:latest
-        docker tag pedidos-veloz_messaging pedidos-veloz/messaging:latest
+        # Images are tagged via the `image:` field in docker-compose.yml
         # Push to registry (assuming Docker Hub)
         echo ${{ secrets.DOCKER_PASSWORD }} | docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
         docker push pedidos-veloz/api-gateway:latest
