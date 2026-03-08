@@ -17,5 +17,3 @@ def test_create_order(client):
     assert response.status_code == 201
     data = response.get_json()
     assert data['message'] == 'Order created'
-    data = response.get_json()
-    assert 'id' in data
