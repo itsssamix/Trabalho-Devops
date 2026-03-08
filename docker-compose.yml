@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  api-gateway:
+    build: ./services/api-gateway
+    ports:
+      - "8080:8080"
+    depends_on:
+      - order-service
+      - payment-service
+      - inventory-service
+    environment:
+      - ORDER_SERVICE_URL=http://order-service:5001
+      - PAYMENT_SERVICE_URL=http://payment-service:5002
+      - INVENTORY_SERVICE_URL=http://inventory-service:5003
+
+  order-service:
+    build: ./services/order-service
+    ports:
+      - "5001:5001"
+    depends_on:
+      - db
+      - messaging
+    environment:
+      - DATABASE_URL=postgresql://user:password@db:5432/pedidos
+      - RABBITMQ_URL=amqp://guest:guest@messaging:5672/
+
+  payment-service:
+    build: ./services/payment-service
+    ports:
+      - "5002:5002"
+    depends_on:
+      - messaging
+    environment:
+      - RABBITMQ_URL=amqp://guest:guest@messaging:5672/
+
+  inventory-service:
+    build: ./services/inventory-service
+    ports:
+      - "5003:5003"
+    depends_on:
+      - db
+      - messaging
+    environment:
+      - DATABASE_URL=postgresql://user:password@db:5432/pedidos
+      - RABBITMQ_URL=amqp://guest:guest@messaging:5672/
+
+  db:
+    build: ./services/db
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=pedidos
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+  messaging:
+    build: ./services/messaging
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+volumes:
+  db_data:

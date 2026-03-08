@@ -1,0 +1,116 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    - name: Install flake8
+      run: pip install flake8
+    - name: Run lint
+      run: |
+        flake8 services/api-gateway/app.py
+        flake8 services/order-service/app.py
+        flake8 services/payment-service/app.py
+        flake8 services/inventory-service/app.py
+
+  test-unit:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    - name: Install dependencies
+      run: |
+        pip install -r services/api-gateway/requirements.txt
+        pip install -r services/order-service/requirements.txt
+        pip install -r services/payment-service/requirements.txt
+        pip install -r services/inventory-service/requirements.txt
+        pip install pytest
+    - name: Run unit tests
+      run: |
+        python -m pytest services/api-gateway/test_app.py -v
+        python -m pytest services/order-service/test_app.py -v
+        python -m pytest services/payment-service/test_app.py -v
+        python -m pytest services/inventory-service/test_app.py -v
+
+  build:
+    runs-on: ubuntu-latest
+    needs: [lint, test-unit]
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+    - name: Build and push Docker images
+      run: |
+        docker-compose build
+        docker tag pedidos-veloz_api-gateway pedidos-veloz/api-gateway:latest
+        docker tag pedidos-veloz_order-service pedidos-veloz/order-service:latest
+        docker tag pedidos-veloz_payment-service pedidos-veloz/payment-service:latest
+        docker tag pedidos-veloz_inventory-service pedidos-veloz/inventory-service:latest
+        docker tag pedidos-veloz_db pedidos-veloz/db:latest
+        docker tag pedidos-veloz_messaging pedidos-veloz/messaging:latest
+        # Push to registry (assuming Docker Hub)
+        echo ${{ secrets.DOCKER_PASSWORD }} | docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
+        docker push pedidos-veloz/api-gateway:latest
+        docker push pedidos-veloz/order-service:latest
+        docker push pedidos-veloz/payment-service:latest
+        docker push pedidos-veloz/inventory-service:latest
+        docker push pedidos-veloz/db:latest
+        docker push pedidos-veloz/messaging:latest
+
+  security-scan:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+    - uses: actions/checkout@v3
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+    - name: Upload Trivy scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+  test-integration:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+    - uses: actions/checkout@v3
+    - name: Run integration tests
+      run: |
+        docker-compose up -d
+        sleep 60
+        # Run simple health checks
+        curl -f http://localhost:8080/health
+        # Test create order
+        curl -X POST http://localhost:8080/orders -H "Content-Type: application/json" -d '{"product_id": 1, "quantity": 1}' -f
+        docker-compose down
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: [test-integration, security-scan]
+    if: github.ref == 'refs/heads/main'
+    steps:
+    - uses: actions/checkout@v3
+    - name: Deploy to Kubernetes
+      run: |
+        # Assuming kubectl configured with secrets
+        kubectl apply -f k8s/manifests/
