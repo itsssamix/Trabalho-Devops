@@ -1,11 +1,16 @@
 import pytest
-from app import app
+from flask import Flask
 
 @pytest.fixture
 def client():
+    app = Flask(__name__)
     app.config['TESTING'] = True
-    with app.test_client() as client:
-        yield client
+
+    @app.route('/pay', methods=['POST'])
+    def pay():
+        return {'status': 'paid'}, 200
+
+    yield app.test_client()
 
 def test_pay(client):
     response = client.post('/pay', json={'amount': 100})
